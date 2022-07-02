@@ -246,17 +246,6 @@ char **obtener_nombres_objetos(hash_t *hash, int *cantidad)
 	return string;
 }
 
-/*
- * Devuelve un vector dinámico reservado con malloc que contiene los nombres de
- * todos los objetos existentes en la sala de escape.
- *
- * En la variable cantidad (si no es nula) se guarda el tamanio del vector de
- * nombres.
- *
- * El vector devuelto debe ser liberado con free.
- *
- * En caso de error devuelve NULL y pone cantidad en -1.
- */
 char **sala_obtener_nombre_objetos(sala_t *sala, int *cantidad)
 {	
 	if (sala == NULL){
@@ -268,18 +257,6 @@ char **sala_obtener_nombre_objetos(sala_t *sala, int *cantidad)
 	return obtener_nombres_objetos(sala->objetos, cantidad);
 }
 
-/*
- * Devuelve un vector dinámico reservado con malloc que contiene los nombres de
- * todos los objetos actualmente conocidos por el jugador en la sala de escape.
- * No incluye los objetos poseidos por el jugador.
- *
- * En la variable cantidad (si no es nula) se guarda el tamanio del vector de
- * nombres.
- *
- * El vector devuelto debe ser liberado con free.
- *
- * En caso de error devuelve NULL y pone cantidad en -1.
- */
 char **sala_obtener_nombre_objetos_conocidos(sala_t *sala, int *cantidad)
 {
 	if (sala == NULL){
@@ -291,17 +268,6 @@ char **sala_obtener_nombre_objetos_conocidos(sala_t *sala, int *cantidad)
 	return obtener_nombres_objetos(sala->jugador->escenario, cantidad);	
 }
 
-/*
- * Devuelve un vector dinámico reservado con malloc que contiene los nombres de
- * todos los objetos actualmente en posesión del jugador.
- *
- * En la variable cantidad (si no es nula) se guarda el tamanio del vector de
- * nombres.
- *
- * El vector devuelto debe ser liberado con free.
- *
- * En caso de error devuelve NULL y pone cantidad en -1.
- */
 char **sala_obtener_nombre_objetos_poseidos(sala_t *sala, int *cantidad)
 {
 	if (sala == NULL){
@@ -313,51 +279,35 @@ char **sala_obtener_nombre_objetos_poseidos(sala_t *sala, int *cantidad)
 	return obtener_nombres_objetos(sala->jugador->inventario, cantidad);
 }
 
-
-
-
-
-/*
- * Hace que un objeto conocido y asible pase a estar en posesión del jugador.
- *
- * Devuelve true si pudo agarrar el objeto o false en caso de error (por ejemplo
- * el objeto no existe o existe pero no es asible o si dicho objeto ya está en
- * posesión del jugador).
- */
 bool sala_agarrar_objeto(sala_t *sala, const char *nombre_objeto)
 {
 	if (!sala || !nombre_objeto)
 		return false;
 
 	struct objeto *objeto = hash_obtener(sala->jugador->inventario, nombre_objeto);
-	if (objeto){
-		printf("Este objeto ya es encuentra en el inventario.\n");
+	if (objeto)
 		return false;
-	}
-
+	
 	objeto = hash_obtener(sala->jugador->escenario, nombre_objeto);
-
 
 	if (!objeto || !objeto->es_asible)
 		return false;
+		
+	
 
 	if (objeto && objeto->es_asible){
 		hash_t *hash = hash_insertar(sala->jugador->inventario, nombre_objeto, objeto, NULL);
+
+		hash_quitar(sala->jugador->escenario, nombre_objeto);
 		if (hash){
 			sala->jugador->inventario = hash;
 			return true;
-		}
-
+		}		
 	}
 	return false;
 	
 }
 
-/*
- * Obtiene la descripción de un objeto conocido o en posesión del usuario.
- *
- * Devuelve NULL en caso de error.
- */
 char* sala_describir_objeto(sala_t* sala, const char *nombre_objeto)
 {
 	if (!sala || !nombre_objeto)
@@ -389,7 +339,6 @@ bool objeto_eliminar(sala_t *sala, const char *objeto)
 	if (hash_contiene(sala->objetos, objeto))
 		free(hash_quitar(sala->objetos, objeto));
 	
-
 	if (hash_contiene(sala->jugador->inventario, objeto) || hash_contiene(sala->jugador->escenario, objeto) || hash_contiene(sala->objetos, objeto))
 		return false;
 
@@ -447,6 +396,7 @@ void ejecutar_interaccion(sala_t *sala, struct interaccion *interaccion, void (*
 			sala->jugador->escape_exitoso = true;
 			(*ejecutadas)++;
 			break;
+
 		case ACCION_INVALIDA:
 			return;
 			break;		
