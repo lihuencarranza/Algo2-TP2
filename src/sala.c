@@ -11,14 +11,32 @@
 
 #define MAX_LINEA 1028
 #define ERROR -1
+#define EXITO 0
+
+typedef struct jugador{
+	bool escape_exitoso;
+	hash_t *escenario;
+	hash_t *inventario;
+}jugador_t;
 
 struct sala{
 	hash_t *objetos;
 	lista_t *interacciones;
-	bool escape_exitoso;
-	hash_t *escenario;
-	hash_t *inventario;
+	jugador_t* jugador;
 };
+
+struct vector_de_elementos{
+	void **vec;
+	size_t tamanio;
+	size_t indice;
+};
+
+
+int comparador(void *elemento, void *contexto)
+{
+	struct objeto *objeto = (struct objeto *)elemento;
+	return strcmp(objeto->nombre, (const char *)contexto);
+}
 
 /*
  * Cierra los archivos recibidos
@@ -92,6 +110,7 @@ int crear_objetos(sala_t *sala, int *tamanio_objetos, FILE *arch_objetos)
 		return ERROR;
 		
 	struct objeto *objeto_auxiliar;
+	int recorrido = 0;
 	
 	while (elemento_leido == 1){
 
@@ -99,9 +118,16 @@ int crear_objetos(sala_t *sala, int *tamanio_objetos, FILE *arch_objetos)
 		if (objeto_auxiliar == NULL)
 			return ERROR;
 
-		if(!hash_insertar(sala->objetos, objeto_auxiliar->nombre, objeto_auxiliar, NULL)){
+		if (!hash_insertar(sala->objetos, objeto_auxiliar->nombre, objeto_auxiliar, NULL)){
 			free(objeto_auxiliar);
 			return ERROR;
+		}
+		if (recorrido == 0){
+			if (!hash_insertar(sala->jugador->escenario, objeto_auxiliar->nombre, objeto_auxiliar, NULL)){
+				free(objeto_auxiliar);
+				return ERROR;
+			}
+			recorrido++;
 		}
 
 		(*tamanio_objetos)++;
@@ -109,7 +135,7 @@ int crear_objetos(sala_t *sala, int *tamanio_objetos, FILE *arch_objetos)
 		elemento_leido = fscanf(arch_objetos, "%[^\n]\n", string_objeto);	
 	}
 
-	return 0;
+	return EXITO;
 }
 
 /* 
@@ -151,13 +177,14 @@ sala_t *sala_crear_desde_archivos(const char *objetos, const char *interacciones
 		return NULL;
 	} 
 
-	sala->objetos = hash_crear(10); //ver tamaño
+	sala->objetos = hash_crear(14); //ver tamaño
 	sala->interacciones = lista_crear();
-	sala->escenario = hash_crear(10);
-	sala->inventario = hash_crear(10);
-	sala->escape_exitoso = false;
+	sala->jugador = malloc(sizeof(jugador_t));
+	sala->jugador->escenario = hash_crear(14);
+	sala->jugador->inventario = hash_crear(14);
+	sala->jugador->escape_exitoso = false;
 
-	if (!sala->objetos || !sala->interacciones || !sala->escenario || !sala->inventario){
+	if (!sala->objetos || !sala->interacciones || !sala->jugador || !sala->jugador->escenario || !sala->jugador->inventario){
 		cerrar_archivos(arch_objetos, arch_interacciones);
 		return NULL;
 	}
@@ -165,7 +192,7 @@ sala_t *sala_crear_desde_archivos(const char *objetos, const char *interacciones
 	
 	int tamanio_objetos = 0;
 	
-	if (crear_objetos(sala, &tamanio_objetos, arch_objetos) == -1){
+	if (crear_objetos(sala, &tamanio_objetos, arch_objetos) == ERROR){
 		sala_destruir(sala);
 		cerrar_archivos(arch_objetos, arch_interacciones);
 		return NULL;
@@ -184,32 +211,21 @@ sala_t *sala_crear_desde_archivos(const char *objetos, const char *interacciones
 	return sala;
 }
 
-struct vector_con_indice{
-	void **vec;
-	size_t tamanio;
-	size_t indice;
-};
-
 bool agregar_clave_a_vector(const char *clave, void *valor, void *aux)
 {
-	struct vector_con_indice *mi_vector = aux;
+	struct vector_de_elementos *vector = aux;
 
-	mi_vector->vec[mi_vector->indice] = (char*)clave;
-	mi_vector->indice++;
+	vector->vec[vector->indice] = (char*)clave;
+	vector->indice++;
 
 	return true;
 }
 
-char **sala_obtener_nombre_objetos(sala_t *sala, int *cantidad)
+char **obtener_nombres_objetos(hash_t *hash, int *cantidad)
 {
-	if (sala == NULL){
-		if(cantidad != NULL)
-			*cantidad = ERROR;	
-		return NULL;
-	}
-
-	size_t cantidad_objetos = hash_cantidad(sala->objetos);
-	char **string = malloc(hash_cantidad(sala->objetos) * sizeof(char*));
+	
+	size_t cantidad_objetos = hash_cantidad(hash);
+	char **string = malloc(hash_cantidad(hash) * sizeof(char*));
 
 	if (string == NULL){
 		if (cantidad != NULL)
@@ -217,23 +233,40 @@ char **sala_obtener_nombre_objetos(sala_t *sala, int *cantidad)
 		return NULL;
 	}
 
-	struct vector_con_indice mi_vector;
-	mi_vector.vec = (void*)string;
-	mi_vector.tamanio = cantidad_objetos;
-	mi_vector.indice = 0;
+	struct vector_de_elementos objetos;
+	objetos.vec = (void*)string;
+	objetos.tamanio = cantidad_objetos;
+	objetos.indice = 0;
 
-	hash_con_cada_clave(sala->objetos, agregar_clave_a_vector, &mi_vector);
+	hash_con_cada_clave(hash, agregar_clave_a_vector, &objetos);
 
 	if (cantidad != NULL)
 		*cantidad = (int)cantidad_objetos;
 		
 	return string;
-
 }
 
-
-
-
+/*
+ * Devuelve un vector dinámico reservado con malloc que contiene los nombres de
+ * todos los objetos existentes en la sala de escape.
+ *
+ * En la variable cantidad (si no es nula) se guarda el tamanio del vector de
+ * nombres.
+ *
+ * El vector devuelto debe ser liberado con free.
+ *
+ * En caso de error devuelve NULL y pone cantidad en -1.
+ */
+char **sala_obtener_nombre_objetos(sala_t *sala, int *cantidad)
+{	
+	if (sala == NULL){
+		if(cantidad != NULL)
+			*cantidad = ERROR;	
+		return NULL;
+	}
+	
+	return obtener_nombres_objetos(sala->objetos, cantidad);
+}
 
 /*
  * Devuelve un vector dinámico reservado con malloc que contiene los nombres de
@@ -249,7 +282,13 @@ char **sala_obtener_nombre_objetos(sala_t *sala, int *cantidad)
  */
 char **sala_obtener_nombre_objetos_conocidos(sala_t *sala, int *cantidad)
 {
-	return NULL;
+	if (sala == NULL){
+		if(cantidad != NULL)
+			*cantidad = ERROR;	
+		return NULL;
+	}
+	
+	return obtener_nombres_objetos(sala->jugador->escenario, cantidad);	
 }
 
 /*
@@ -265,8 +304,18 @@ char **sala_obtener_nombre_objetos_conocidos(sala_t *sala, int *cantidad)
  */
 char **sala_obtener_nombre_objetos_poseidos(sala_t *sala, int *cantidad)
 {
-	return NULL;
+	if (sala == NULL){
+		if(cantidad != NULL)
+			*cantidad = ERROR;	
+		return NULL;
+	}
+
+	return obtener_nombres_objetos(sala->jugador->inventario, cantidad);
 }
+
+
+
+
 
 /*
  * Hace que un objeto conocido y asible pase a estar en posesión del jugador.
@@ -277,7 +326,31 @@ char **sala_obtener_nombre_objetos_poseidos(sala_t *sala, int *cantidad)
  */
 bool sala_agarrar_objeto(sala_t *sala, const char *nombre_objeto)
 {
+	if (!sala || !nombre_objeto)
+		return false;
+
+	struct objeto *objeto = hash_obtener(sala->jugador->inventario, nombre_objeto);
+	if (objeto){
+		printf("Este objeto ya es encuentra en el inventario.\n");
+		return false;
+	}
+
+	objeto = hash_obtener(sala->jugador->escenario, nombre_objeto);
+
+
+	if (!objeto || !objeto->es_asible)
+		return false;
+
+	if (objeto && objeto->es_asible){
+		hash_t *hash = hash_insertar(sala->jugador->inventario, nombre_objeto, objeto, NULL);
+		if (hash){
+			sala->jugador->inventario = hash;
+			return true;
+		}
+
+	}
 	return false;
+	
 }
 
 /*
@@ -287,114 +360,194 @@ bool sala_agarrar_objeto(sala_t *sala, const char *nombre_objeto)
  */
 char* sala_describir_objeto(sala_t* sala, const char *nombre_objeto)
 {
-	return NULL;
-}
+	if (!sala || !nombre_objeto)
+		return NULL;
 
-int ejecutar_interaccion(sala_t *sala, struct interaccion *interaccion, void (*mostrar_mensaje)(const char *mensaje, enum tipo_accion accion, void *aux), void *aux)
-{
-	switch (interaccion->accion.tipo){
-		case ACCION_INVALIDA:
-			break;
-		case DESCUBRIR_OBJETO:
-			/*if (conozco(interaccion->objeto) && conozco(interaccion->objeto_parametro)){
-				hash_insertar(sala->escenario, interaccion->accion.objeto, objeto_de_la_sala, NULL); //PENSAR EL NULL
-				mostrar_mensaje(interaccion->accion.mensaje, MOSTRAR_MENSAJE, aux);
-				return 1;
-			}*/
-			break;
-		case REEMPLAZAR_OBJETO:
-			break;
-		case ELIMINAR_OBJETO:
-			break;
-		case MOSTRAR_MENSAJE:
-		//si puedo usar los objetos
-			mostrar_mensaje(interaccion->accion.mensaje, MOSTRAR_MENSAJE, aux);
-			break;
-		case ESCAPAR:
-			break;
-				
-		default:
-			break;
+	struct objeto* auxiliar = hash_obtener(sala->jugador->escenario, nombre_objeto);
+	if (!auxiliar){
+		auxiliar = hash_obtener(sala->jugador->inventario, nombre_objeto);
+
+		if (!auxiliar)
+			return NULL;
 	}
-
-
-
-	return ERROR;
+		
+	
+	return auxiliar->descripcion;
 }
 
 /*
- * Ejecuta una o mas interacciones en la sala de escape. Cuando una interacción
- * tenga un mensaje para mostrar por pantalla, se invocará la función
- * mostrar_mensaje (si no es NULL) con el mensaje a mostrar, el tipo de acción que representa el
- * mensaje y un puntero auxiliar del usuario.
- *
- * Devuelve la cantidad de interacciones que pudo ejecutar o 0 en caso de error.
+ * 
+ * Elimina el objeto solicitado del inventario, del escenario 
  *
  */
+bool objeto_eliminar(sala_t *sala, const char *objeto)
+{
+	if (hash_contiene(sala->jugador->inventario, objeto))
+		hash_quitar(sala->jugador->inventario, objeto);
+	if (hash_contiene(sala->jugador->escenario, objeto))
+		hash_quitar(sala->jugador->escenario, objeto);
+	if (hash_contiene(sala->objetos, objeto))
+		free(hash_quitar(sala->objetos, objeto));
+	
+
+	if (hash_contiene(sala->jugador->inventario, objeto) || hash_contiene(sala->jugador->escenario, objeto) || hash_contiene(sala->objetos, objeto))
+		return false;
+
+	return true;
+}
+
+bool objeto_conocer(sala_t *sala, const char *nombre_objeto)
+{
+	if (hash_contiene(sala->jugador->inventario, nombre_objeto) || hash_contiene(sala->jugador->escenario, nombre_objeto))
+		return false;
+	
+	if (hash_contiene(sala->objetos, nombre_objeto)){
+		struct objeto *objeto = hash_obtener(sala->objetos, nombre_objeto);
+		hash_insertar(sala->jugador->escenario, nombre_objeto, objeto, NULL);
+		return true;
+	}
+
+	return false;
+}
+
+void ejecutar_interaccion(sala_t *sala, struct interaccion *interaccion, void (*mostrar_mensaje)(const char *mensaje, enum tipo_accion accion, void *aux), void *aux, int *ejecutadas)
+{
+	
+	switch (interaccion->accion.tipo){
+		
+		case DESCUBRIR_OBJETO:
+			if (objeto_conocer(sala, interaccion->accion.objeto))
+				(*ejecutadas)++;
+			else 
+				return;
+			
+			break;
+
+		case ELIMINAR_OBJETO:
+			if (objeto_eliminar(sala, interaccion->accion.objeto))
+				(*ejecutadas)++;
+			else 
+				return;
+			
+			break;
+			
+		case REEMPLAZAR_OBJETO:
+			if (objeto_eliminar(sala, interaccion->objeto_parametro) && objeto_conocer(sala, interaccion->accion.objeto))
+				(*ejecutadas)++;
+			else 
+				return;
+				
+			break;
+
+		case MOSTRAR_MENSAJE:
+			(*ejecutadas)++;			
+			break;
+
+		case ESCAPAR:
+			sala->jugador->escape_exitoso = true;
+			(*ejecutadas)++;
+			break;
+		case ACCION_INVALIDA:
+			return;
+			break;		
+	}
+
+	mostrar_mensaje(interaccion->accion.mensaje, interaccion->accion.tipo, aux);
+
+}
+
+bool interaccion_coincide(struct interaccion *interaccion, const char *verbo, const char *objeto1, const char *objeto2)
+{
+	return (strcmp(interaccion->objeto, objeto1) == 0 && strcmp(interaccion->verbo ,verbo) == 0 && strcmp(interaccion->objeto_parametro ,objeto2)== 0 );
+}
+
+bool objeto_es_conocido_o_vacio(sala_t *sala, const char *objeto)
+{
+	if (*objeto == 0)
+		return true;
+	
+	if (hash_contiene(sala->jugador->inventario, objeto) || hash_contiene(sala->jugador->escenario, objeto))
+		return true;
+	
+	return false;
+}
+
 int sala_ejecutar_interaccion(sala_t *sala, const char *verbo, const char *objeto1, const char *objeto2, void (*mostrar_mensaje)(const char *mensaje, enum tipo_accion accion, void *aux), void *aux)
 {
-	int ejecutadas = 0;	
-	/*lista_iterador_t *it = lista_iterador_crear(sala->interacciones);
+	if (!sala || !verbo || !objeto1 || !aux)
+		return ERROR;
 
-	for (;lista_iterador_tiene_siguiente(it); lista_iterador_avanzar(it)){
+	int ejecutadas = 0;
+
+	if (!sala_es_interaccion_valida(sala, verbo, objeto1, objeto2))
+		return ejecutadas;
+		
+	if (!objeto_es_conocido_o_vacio(sala, objeto1) || !objeto_es_conocido_o_vacio(sala, objeto2))
+		return ejecutadas;
+
+	lista_iterador_t *it = lista_iterador_crear(sala->interacciones);
+
+	while(lista_iterador_tiene_siguiente(it)){
+
 		struct interaccion *interaccion = lista_iterador_elemento_actual(it);
 		
 		if (interaccion_coincide(interaccion, verbo, objeto1, objeto2))
-			ejecutadas += ejecutar_interaccion(sala, interaccion, mostrar_mensaje, aux);
+			ejecutar_interaccion(sala, interaccion, mostrar_mensaje, aux, &ejecutadas);			
+
+		lista_iterador_avanzar(it);	
 		
-	}*/
+	}
+
+	free(it);
 	
 	return ejecutadas;
 }
 
+int verificar_interaccion(void *actual, void *contexto)
+{
+	struct interaccion *aux1 = actual;
+	struct interaccion *aux2 = contexto;
 
-
-
-
+	if (strcmp(aux1->verbo, aux2->verbo) == 0 && strcmp(aux1->objeto, aux2->objeto) == 0 && strcmp(aux1->objeto_parametro, aux2->objeto_parametro) == 0)
+		return EXITO;
+	
+	return ERROR;
+}
 
 bool sala_es_interaccion_valida(sala_t *sala, const char *verbo, const char *objeto1, const char *objeto2)
 {
 	if (sala == NULL || sala->interacciones == NULL || verbo == NULL || objeto1 == NULL || objeto2 == NULL)
-		return NULL;
+		return false;
 	
-	/*int contador = 0;
+	struct interaccion buscado;
+	
+	strcpy(buscado.objeto, objeto1);
+	strcpy(buscado.verbo, verbo);
+	strcpy(buscado.objeto_parametro, objeto2);
 
-	for (int i = 0; i < sala->cantidad_interacciones; i++){
-		if (strcmp(sala->interacciones[i]->verbo, verbo) == 0)
-			contador++;
-
-		if (strcmp(sala->interacciones[i]->objeto, objeto1) == 0)
-			contador++;
-
-		if (strcmp(sala->interacciones[i]->objeto_parametro, objeto2) == 0)
-			contador++;
-
-		if (contador == 3)
-			return true;
-		
-		contador = 0;
-	}*/
-
+	if (lista_buscar_elemento(sala->interacciones, verificar_interaccion, &buscado))
+		return true;
+	
+	
 	return false;
 }
 
-
-/*
- * Devuelve true si se pudo escapar de la sala. False en caso contrario o si no existe la sala.
- */
 bool sala_escape_exitoso(sala_t *sala)
 {
-	return false;
+	if (!sala)
+		return false;
+	return sala->jugador->escape_exitoso;
 }
-
-
 
 void sala_destruir(sala_t *sala)
 {
+
+	hash_destruir(sala->jugador->escenario);
+	hash_destruir(sala->jugador->inventario);
 	lista_destruir_todo(sala->interacciones, free);
 	hash_destruir_todo(sala->objetos, free);
-	hash_destruir(sala->escenario);
-	hash_destruir(sala->inventario);
+
+	free(sala->jugador);
 		
 	free(sala);
 }

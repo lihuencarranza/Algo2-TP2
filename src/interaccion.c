@@ -26,7 +26,11 @@ enum tipo_accion definir_tipo_de_accion(char letra_accion){
 		case 'm':
 			auxiliar = MOSTRAR_MENSAJE;
 			break;
-		
+
+		case 'g':
+			auxiliar = ESCAPAR;
+			break;
+			
 		default:
 			auxiliar = ACCION_INVALIDA;
 			break;
