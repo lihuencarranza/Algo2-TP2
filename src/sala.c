@@ -424,7 +424,7 @@ bool objeto_es_conocido_o_vacio(sala_t *sala, const char *objeto)
 
 int sala_ejecutar_interaccion(sala_t *sala, const char *verbo, const char *objeto1, const char *objeto2, void (*mostrar_mensaje)(const char *mensaje, enum tipo_accion accion, void *aux), void *aux)
 {
-	if (!sala || !verbo || !objeto1 || !aux)
+	if (!sala || !verbo || !objeto1)
 		return ERROR;
 
 	int ejecutadas = 0;

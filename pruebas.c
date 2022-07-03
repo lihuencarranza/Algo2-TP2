@@ -201,6 +201,9 @@ void contar_acciones(const char *mensaje, enum tipo_accion accion,
 	}
 }
 
+
+
+
 void pruebas_escenario_basico()
 {
 	sala_t *sala = NULL;
@@ -493,6 +496,8 @@ void pruebas_escenario_basico()
 
 	sala_destruir(sala);
 }
+
+
 
 int main()
 {
