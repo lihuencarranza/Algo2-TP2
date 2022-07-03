@@ -1,5 +1,6 @@
 #include "pa2mm.h"
 #include "src/estructuras.h"
+#include "src/estructuras_sala.h"
 #include "src/sala.h"
 #include "src/objeto.h"
 #include "src/interaccion.h"
@@ -20,6 +21,11 @@ int vector_contiene_elementos(char *elementos[], char *esperados[],
 		}
 	}
 	return encontrados;
+}
+
+void mostrar_mensaje(const char *mensaje, enum tipo_accion accion, void *aux)
+{
+	
 }
 
 void pruebasCrearObjeto()
@@ -115,8 +121,6 @@ void pruebas_crear_sala()
 	sala_t *sala = sala_crear_desde_archivos("chanu/obj.dat", "chanu/int.csv");
 
 	pa2m_afirmar(sala != NULL, "Puedo crear la sala a partir de archivos no vacíos");
-	//pa2m_afirmar(hash_cantidad(sala->escenario) == 9, "Se leyeron 9 objetos");
-	//pa2m_afirmar(sala->cantidad_interacciones == 9, "Se leyeron 9 interacciones");
 
 	sala_destruir(sala);
 }
@@ -201,8 +205,59 @@ void contar_acciones(const char *mensaje, enum tipo_accion accion,
 	}
 }
 
+void pruebas_estructuras_inicializadas()
+{
+	sala_t *sala = sala_crear_desde_archivos("chanu/obj.dat", "chanu/int.csv");
+	pa2m_afirmar(sala, "La sala se puede crear");
+	pa2m_afirmar(sala->jugador->escape_exitoso == false, "La variable escapó es false");
+	
+	int cantidad_escenario = 0;
+	char **array = sala_obtener_nombre_objetos_conocidos(sala, &cantidad_escenario);
+	free(array);
+	pa2m_afirmar(cantidad_escenario == 1, "La cantidad de objetos conocidos es 1");
 
+	int cantidad_inventario = 0;
+	array = sala_obtener_nombre_objetos_poseidos(sala, &cantidad_inventario);
 
+	pa2m_afirmar(cantidad_inventario == 0, "La cantidad de objetos poseídos es cero");
+
+	free(array);
+	sala_destruir(sala);
+}
+
+void pruebas_ejecutar_interacciones()
+{
+	sala_t *sala = NULL;
+	void *aux = NULL;
+	sala = sala_crear_desde_archivos("chanu/obj.dat", "chanu/int.csv");
+	
+	pa2m_afirmar(sala_agarrar_objeto(sala, "pokebola") == false, "No puedo agarrar un objeto que no existe o no conozco");
+	
+	pa2m_afirmar(hash_contiene(sala->jugador->inventario, "mesa") == false, "El objeto mesa no se encuentra en el hash de objetos conocidos");
+	pa2m_afirmar(hash_contiene(sala->jugador->inventario, "interruptor") == false, "El objeto interruptor no se encuentra en el hash de objetos conocidos");
+	int cosa = sala_es_interaccion_valida(sala, "examinar", "habitacion", "");
+	pa2m_afirmar(cosa == true, "Puedo examinar la habitación");
+	int interacciones = sala_ejecutar_interaccion(sala, "examinar", "habitacion", "", mostrar_mensaje, aux);
+	pa2m_afirmar(interacciones == 2, "Examiné la habitacion y se ejecutaron 2 interacciones");
+	
+	bool contiene = hash_contiene(sala->jugador->escenario, "mesa");
+	pa2m_afirmar(contiene, "El objeto mesa se agrego al hash de objetos conocidos");
+	pa2m_afirmar(hash_contiene(sala->jugador->escenario, "interruptor"), "El objeto interruptor se agrego al hash de objetos conocidos");
+	
+	
+	interacciones = sala_ejecutar_interaccion(sala, "examinar", "mesa", "", mostrar_mensaje, aux);
+	pa2m_afirmar(( interacciones == 2), "Examiné la mesa y se ejecutaron 2 interacciones");
+	pa2m_afirmar(hash_contiene(sala->jugador->escenario, "cajon"), "El objeto cajon se agrego al hash de objetos conocidos");
+	pa2m_afirmar(hash_contiene(sala->jugador->escenario, "pokebola"), "El objeto pokebola se agrego al hash de objetos de la sala");
+	
+	pa2m_afirmar(!sala_agarrar_objeto(NULL, "pokebola"), "No puedo agarra un objeto en sala NULL");
+	pa2m_afirmar(sala_agarrar_objeto(sala, "pokebola"), "Puedo agarrar la pokebola");
+	interacciones = sala_ejecutar_interaccion(sala, "abrir", "pokebola", "", mostrar_mensaje, aux);
+	pa2m_afirmar(interacciones == 1, "Abri la pokebola y se ejecutaron 1 interacciones");
+	pa2m_afirmar(hash_contiene(sala->jugador->escenario, "anillo"), "El objeto anillo se agrego al hash de objetos del escenario");
+
+	sala_destruir(sala);
+}
 
 void pruebas_escenario_basico()
 {
@@ -497,10 +552,9 @@ void pruebas_escenario_basico()
 	sala_destruir(sala);
 }
 
-
-
 int main()
 {
+	pa2m_nuevo_grupo("Pruebas parte 1");
 	pa2m_nuevo_grupo("Pruebas de creación de objetos");
 	pruebasCrearObjeto();
 
@@ -516,8 +570,16 @@ int main()
 	pa2m_nuevo_grupo("Pruebas de interacciones");
 	pruebas_interacciones();
 
+	pa2m_nuevo_grupo("Pruebas parte 2");
+	
+	pa2m_nuevo_grupo("Pruebas de inicialización");
+	pruebas_estructuras_inicializadas();
+
+	pa2m_nuevo_grupo("Prubas con elementos inválidos");
+	pruebas_ejecutar_interacciones();
+
 	pa2m_nuevo_grupo("Pruebas de funcionamiento del escenario básico completo");
-	//pruebas_escenario_basico();
+	pruebas_escenario_basico();
 
 
 	return pa2m_mostrar_reporte();

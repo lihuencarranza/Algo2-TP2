@@ -1,4 +1,5 @@
 #include "estructuras.h"
+#include "estructuras_sala.h"
 #include "sala.h"
 #include "objeto.h"
 #include "interaccion.h"
@@ -6,32 +7,18 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "lista.h"
-#include "hash.h"
+
 
 #define MAX_LINEA 1028
 #define ERROR -1
 #define EXITO 0
 
-typedef struct jugador{
-	bool escape_exitoso;
-	hash_t *escenario;
-	hash_t *inventario;
-}jugador_t;
-
-struct sala{
-	hash_t *objetos;
-	lista_t *interacciones;
-	jugador_t* jugador;
-};
-
-struct vector_de_elementos{
-	void **vec;
-	size_t tamanio;
-	size_t indice;
-};
 
 
+/*
+ * Recibe un objeto y lo compara con un nombre (contexto),
+ * De ser iguales, devuelve true.
+ */
 int comparador(void *elemento, void *contexto)
 {
 	struct objeto *objeto = (struct objeto *)elemento;
@@ -177,7 +164,7 @@ sala_t *sala_crear_desde_archivos(const char *objetos, const char *interacciones
 		return NULL;
 	} 
 
-	sala->objetos = hash_crear(14); //ver tamaño
+	sala->objetos = hash_crear(14); 
 	sala->interacciones = lista_crear();
 	sala->jugador = malloc(sizeof(jugador_t));
 	sala->jugador->escenario = hash_crear(14);
@@ -211,6 +198,12 @@ sala_t *sala_crear_desde_archivos(const char *objetos, const char *interacciones
 	return sala;
 }
 
+/*
+ * Recibe un nombre de un objeto y un vector
+ * el parámetro valor no es utilizado pero necesario
+ * para usar la función desde el hash
+ * Se agrega el nombre del objeto al vector
+*/
 bool agregar_clave_a_vector(const char *clave, void *valor, void *aux)
 {
 	struct vector_de_elementos *vector = aux;
@@ -221,9 +214,14 @@ bool agregar_clave_a_vector(const char *clave, void *valor, void *aux)
 	return true;
 }
 
+/*
+ * A partir de un hash agrega los nombres de los objetos 
+ * del mismo a un array de nombres
+ */
 char **obtener_nombres_objetos(hash_t *hash, int *cantidad)
 {
-	
+	if (!hash)
+		return NULL;
 	size_t cantidad_objetos = hash_cantidad(hash);
 	char **string = malloc(hash_cantidad(hash) * sizeof(char*));
 
@@ -345,6 +343,13 @@ bool objeto_eliminar(sala_t *sala, const char *objeto)
 	return true;
 }
 
+/*
+ * Recibe la sala y un nombre de objeto
+ * Si está en los objetos leidos desde archivo y
+ * Aún no está en el escenario o inventario
+ * Se agrega el objeto a partir de la información 
+ * de los archivos en el escenario del jugador. 
+ */
 bool objeto_conocer(sala_t *sala, const char *nombre_objeto)
 {
 	if (hash_contiene(sala->jugador->inventario, nombre_objeto) || hash_contiene(sala->jugador->escenario, nombre_objeto))
@@ -359,6 +364,11 @@ bool objeto_conocer(sala_t *sala, const char *nombre_objeto)
 	return false;
 }
 
+/*
+ * Bifurca las acciones a ejecutar depenediendo de la 
+ * interaccion solicitada
+ * Muestra mensaje en el caso de poder realizarse
+ */ 
 void ejecutar_interaccion(sala_t *sala, struct interaccion *interaccion, void (*mostrar_mensaje)(const char *mensaje, enum tipo_accion accion, void *aux), void *aux, int *ejecutadas)
 {
 	
@@ -406,11 +416,19 @@ void ejecutar_interaccion(sala_t *sala, struct interaccion *interaccion, void (*
 
 }
 
+/*
+ * Verifica si la interación recibida coincide con
+ * los parámetros recibidos. De coinciden devuelve true
+ */ 
 bool interaccion_coincide(struct interaccion *interaccion, const char *verbo, const char *objeto1, const char *objeto2)
 {
 	return (strcmp(interaccion->objeto, objeto1) == 0 && strcmp(interaccion->verbo ,verbo) == 0 && strcmp(interaccion->objeto_parametro ,objeto2)== 0 );
 }
 
+/*
+ * Verifica si el objeto ya está en el escenario
+ * o inventario del jugador. De estarlo devuelve true
+ */ 
 bool objeto_es_conocido_o_vacio(sala_t *sala, const char *objeto)
 {
 	if (*objeto == 0)
@@ -453,6 +471,12 @@ int sala_ejecutar_interaccion(sala_t *sala, const char *verbo, const char *objet
 	return ejecutadas;
 }
 
+
+/*
+ * Recibe dos interacciones, una iterada y la otra su 
+ * comparación. Si las interacciones coinciden sus
+ * parámetros devuelven true
+ */ 
 int verificar_interaccion(void *actual, void *contexto)
 {
 	struct interaccion *aux1 = actual;
@@ -466,7 +490,7 @@ int verificar_interaccion(void *actual, void *contexto)
 
 bool sala_es_interaccion_valida(sala_t *sala, const char *verbo, const char *objeto1, const char *objeto2)
 {
-	if (sala == NULL || sala->interacciones == NULL || verbo == NULL || objeto1 == NULL || objeto2 == NULL)
+	if (!sala || !sala->interacciones || !verbo || !objeto1)
 		return false;
 	
 	struct interaccion buscado;

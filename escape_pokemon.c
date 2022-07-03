@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 #define MAX_NOMBRE 20
 #define MAX_VERBO  20
@@ -102,6 +103,16 @@ void registrar_input(char *input, char *verbo, char *objeto1, char *objeto2)
 	printf("Ingrese una interacion:\n");
 	fgets(input, MAX_INPUT, stdin);
 	sscanf(input, "%s %s %s", verbo, objeto1, objeto2);
+	for (int i = 0; verbo[i]; i++){
+		verbo[i] = (char)tolower(verbo[i]);
+	}
+	for (int j = 0; objeto1[j]; j++){
+		objeto1[j] = (char)tolower(objeto1[j]);
+	}
+	for (int k = 0; objeto1[k]; k++){
+		objeto2[k] = (char)tolower(objeto2[k]);
+	}
+	
 }
 
 void ayuda_extra()
@@ -251,6 +262,3 @@ int main(int argc, char *argv[])
 
 	return 0;
 }
-
-//gcc ./escape_pokemon.c ./src/*.c ./src/*.h -o pokemon -std=c99 -Wall -Wconversion -Werror -lm
-//valgrind ./pokemon ./ejemplo/objetos.txt ./ejemplo/interacciones.txt 
