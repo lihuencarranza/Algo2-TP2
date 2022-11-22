@@ -39,10 +39,12 @@ sala_obtener_nombre_objetos creé una estructura que guarda los objetos, les cre
 inserta en el hash. Entonces, el orden de los objetos es diferente, por lo tanto, cambié el orden del
 vector de objetos esperados en las pruebas.
 En segundo lugar, tenemos un bloque de pruebas fallidas sobre interacciones:
+
 ✗ Puedo examinar la habitación
 ✗ Puedo usar la llave en el cajón
 ✗ Puedo abrir la pokebola
 ✗ Puedo examinar el cajón abierto
+
 La causa es la misma que la de la prueba anterior: cambié las estructuras y no se puede
 acceder a las interacciones a través de un vector sino de una lista. Anteriormente, se iteraba el vector
 de interacciones comparando el verbo, el objeto1 y el objeto2. Si los tres coincidían, la interacción se
